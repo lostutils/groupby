@@ -10,3 +10,7 @@ readme = "README.md"
 [dependencies]
 regex = "0.2.9"
 clap = "2.31.1"
+
+[[bin]]
+name = "groupby"
+path = "src/main.rs"
