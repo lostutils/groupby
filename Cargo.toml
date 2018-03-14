@@ -1,0 +1,12 @@
+[package]
+name = "groupby"
+version = "0.1.0"
+authors = ["Tamir Bahar"]
+repository = "https://github.com/lostutils/groupby"
+license = "MIT"
+description = "Group lines by regex"
+readme = "README.md"
+
+[dependencies]
+regex = "0.2.9"
+clap = "2.31.1"
