@@ -6,7 +6,24 @@ use regex::Regex;
 use std::collections::{BTreeSet, BTreeMap};
 use std::io::BufRead;
 
-trait Group: Default + IntoIterator<Item = String> {
+#[derive(Debug)]
+enum GroupId<'a> {
+    Name(&'a str),
+    Index(usize),
+    None,
+}
+
+impl<'a> From<&'a str> for GroupId<'a> {
+    fn from(s: &'a str) -> Self {
+        match s.parse::<usize>() {
+            Ok(n) => GroupId::Index(n),
+            Err(_) => GroupId::Name(s),
+        }
+    }
+}
+
+
+trait Group: Default + IntoIterator<Item=String> {
     fn add(&mut self, line: String);
 }
 
@@ -22,7 +39,7 @@ impl Group for Vec<String> {
     }
 }
 
-fn groupby<G: Group>(re: &Regex, group_id: Option<usize>) -> BTreeMap<String, G> {
+fn groupby<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
     let mut grouping: BTreeMap<String, G> = BTreeMap::new();
 
     let stdin = std::io::stdin();
@@ -31,7 +48,13 @@ fn groupby<G: Group>(re: &Regex, group_id: Option<usize>) -> BTreeMap<String, G>
 
 
         let capture = match re.captures(&line) {
-            Some(captures) => captures.get(group_id.unwrap_or(0)).unwrap().as_str(),
+            Some(captures) => {
+                match group_id {
+                    GroupId::Name(name) => captures.name(name).unwrap().as_str(),
+                    GroupId::Index(index) => captures.get(index).unwrap().as_str(),
+                    GroupId::None => captures.get(0).unwrap().as_str(),
+                }
+            }
             None => "***NO-MATCH***",
         };
 
@@ -41,7 +64,7 @@ fn groupby<G: Group>(re: &Regex, group_id: Option<usize>) -> BTreeMap<String, G>
     return grouping;
 }
 
-fn print_groupby<G: Group>(re: &Regex, group_id: Option<usize>) {
+fn print_groupby<G: Group>(re: &Regex, group_id: GroupId) {
     for (group, members) in groupby::<G>(&re, group_id) {
         println!("{}", group);
         for line in members {
@@ -50,13 +73,34 @@ fn print_groupby<G: Group>(re: &Regex, group_id: Option<usize>) {
     }
 }
 
-fn print_groupby_unique(re: &Regex, group_id: Option<usize>) {
+fn print_groupby_unique(re: &Regex, group_id: GroupId) {
     print_groupby::<BTreeSet<String>>(re, group_id);
 }
 
-fn print_groupby_all(re: &Regex, group_id: Option<usize>) {
+fn print_groupby_all(re: &Regex, group_id: GroupId) {
     print_groupby::<Vec<String>>(re, group_id);
 }
+
+fn validate_group_id(group_id: &GroupId, re: &Regex) -> Result<(), String> {
+    match group_id {
+        &GroupId::Name(name) => {
+            if re.capture_names().find(|capture_name| capture_name.unwrap_or("") == name).is_none() {
+                Err(format!("Group name unknown: {}", name))
+            } else {
+                Ok(())
+            }
+        }
+        &GroupId::Index(index) => {
+            if index >= re.captures_len() {
+                Err(format!("Group index too large: {}", index))
+            } else {
+                Ok(())
+            }
+        }
+        &GroupId::None => Ok(()),
+    }
+}
+
 
 fn main() {
     let matches = App::new("groupby (lostutils)")
@@ -88,12 +132,14 @@ fn main() {
     let re = Regex::new(pat).unwrap();
 
     let group_id = match matches.value_of("group-id") {
-        Some(n) => match n.parse::<usize>() {
-            Ok(n) => Some(n),
-            Err(_) => None,
-        },
-        None => None,
+        Some(value) => GroupId::from(value),
+        None => GroupId::None,
     };
+
+    if let Err(message) = validate_group_id(&group_id, &re) {
+        println!("{}", message);
+        std::process::exit(1);
+    }
 
     let is_unique = matches.is_present("unique");
 

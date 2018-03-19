@@ -1,6 +1,6 @@
 [package]
 name = "groupby"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Tamir Bahar"]
 repository = "https://github.com/lostutils/groupby"
 license = "MIT"
