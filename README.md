@@ -3,21 +3,31 @@
 Group lines base on a regular expression
 
 ```
-groupby (lostutils) 
+groupby (lostutils) 0.1.3
 Group lines based on a given regex.
 
 USAGE:
-    groupby [OPTIONS] <regex>
+    groupby [FLAGS] [OPTIONS] <regex>
 
 FLAGS:
-    -h, --help       Prints help information
-    -V, --version    Prints version information
+    -h, --help       
+            Prints help information
+
+    -u               
+            Remove duplicate lines in the same group
+
+    -V, --version    
+            Prints version information
+
 
 OPTIONS:
-    -g <group-id>        The group-id to group by.
+    -g <group-id>        
+            The group-id to group by. Can be an index or a group name.
+
 
 ARGS:
-    <regex>    The regex to group by.
+    <regex>    
+            The regex to group by. The match will use the entire expression, unless a group-id is provided.
 ```
 
 ## Usage

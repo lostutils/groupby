@@ -1,5 +1,6 @@
-extern crate regex;
+#[macro_use]
 extern crate clap;
+extern crate regex;
 
 use clap::{App, Arg};
 use regex::Regex;
@@ -120,6 +121,7 @@ fn validate_group_id(group_id: &GroupId, re: &Regex) -> Result<(), String> {
 fn main() {
     let matches = App::new("groupby (lostutils)")
         .about("Group lines based on a given regex.")
+        .version(crate_version!())
         .arg(
             Arg::with_name("regex")
                 .help("The regex to group by.")
@@ -132,6 +134,7 @@ fn main() {
                 .short("g")
                 .value_name("group-id")
                 .help("The group-id to group by.")
+                .long_help("The group-id to group by. Can be an index or a group name.")
         )
         .arg(
             Arg::with_name("unique")
