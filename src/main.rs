@@ -81,23 +81,38 @@ fn print_groupby_all(re: &Regex, group_id: GroupId) {
     print_groupby::<Vec<String>>(re, group_id);
 }
 
+fn compare_with_option<T: PartialEq>(value: &T, opt: &Option<T>) -> bool {
+    match *opt {
+        Some(ref opt_value) => opt_value == value,
+        _ => false,
+    }
+}
+
+fn has_named_capture(regex: &Regex, name: &str) -> bool {
+    regex.capture_names().any(|capture_name| compare_with_option(&name, &capture_name))
+}
+
+fn has_indexed_capture(regex: &Regex, index: usize) -> bool {
+    index < regex.captures_len()
+}
+
 fn validate_group_id(group_id: &GroupId, re: &Regex) -> Result<(), String> {
-    match group_id {
-        &GroupId::Name(name) => {
-            if re.capture_names().find(|capture_name| capture_name.unwrap_or("") == name).is_none() {
+    match *group_id {
+        GroupId::Name(name) => {
+            if !has_named_capture(&re, &name) {
                 Err(format!("Group name unknown: {}", name))
             } else {
                 Ok(())
             }
         }
-        &GroupId::Index(index) => {
-            if index >= re.captures_len() {
+        GroupId::Index(index) => {
+            if !has_indexed_capture(&re, index) {
                 Err(format!("Group index too large: {}", index))
             } else {
                 Ok(())
             }
         }
-        &GroupId::None => Ok(()),
+        GroupId::None => Ok(()),
     }
 }
 
