@@ -65,6 +65,37 @@ fn groupby<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
     return grouping;
 }
 
+fn regex_matcher<'a>(re: &'a Regex, group_id: &'a GroupId) -> Box<FnMut(&str) -> &str + 'a> {
+    Box::new(move |line: &str| -> &str{
+        match re.captures(&line) {
+            Some(captures) => {
+                match *group_id {
+                    GroupId::Name(name) => captures.name(name).unwrap().as_str(),
+                    GroupId::Index(index) => captures.get(index).unwrap().as_str(),
+                    GroupId::None => captures.get(0).unwrap().as_str(),
+                }
+            }
+            None => "***NO-MATCH***",
+        }
+    })
+}
+
+fn groupby2<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
+    let mut grouping: BTreeMap<String, G> = BTreeMap::new();
+
+    let stdin = std::io::stdin();
+    for line in stdin.lock().lines() {
+        let line = line.unwrap();
+
+
+        let capture = regex_matcher(re, &group_id)(&line);
+
+        grouping.entry(capture.to_string()).or_insert_with(Default::default).add(line.clone());
+    }
+
+    return grouping;
+}
+
 fn print_groupby<G: Group>(re: &Regex, group_id: GroupId) {
     for (group, members) in groupby::<G>(&re, group_id) {
         println!("{}", group);
