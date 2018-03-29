@@ -40,33 +40,8 @@ impl Group for Vec<String> {
     }
 }
 
-fn groupby<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
-    let mut grouping: BTreeMap<String, G> = BTreeMap::new();
-
-    let stdin = std::io::stdin();
-    for line in stdin.lock().lines() {
-        let line = line.unwrap();
-
-
-        let capture = match re.captures(&line) {
-            Some(captures) => {
-                match group_id {
-                    GroupId::Name(name) => captures.name(name).unwrap().as_str(),
-                    GroupId::Index(index) => captures.get(index).unwrap().as_str(),
-                    GroupId::None => captures.get(0).unwrap().as_str(),
-                }
-            }
-            None => "***NO-MATCH***",
-        };
-
-        grouping.entry(capture.to_string()).or_insert_with(Default::default).add(line.clone());
-    }
-
-    return grouping;
-}
-
-fn regex_matcher<'a>(re: &'a Regex, group_id: &'a GroupId) -> Box<FnMut(&str) -> &str + 'a> {
-    Box::new(move |line: &str| -> &str{
+fn regex_matcher<'a>(re: &'a Regex, group_id: &'a GroupId) -> Box<FnMut(&str) -> String + 'a> {
+    Box::new(move |line: &str| -> String{
         match re.captures(&line) {
             Some(captures) => {
                 match *group_id {
@@ -76,11 +51,11 @@ fn regex_matcher<'a>(re: &'a Regex, group_id: &'a GroupId) -> Box<FnMut(&str) ->
                 }
             }
             None => "***NO-MATCH***",
-        }
+        }.to_string()
     })
 }
 
-fn groupby2<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
+fn groupby<'a, G: Group>(key: &mut Box<FnMut(&str) -> String + 'a>) -> BTreeMap<String, G> {
     let mut grouping: BTreeMap<String, G> = BTreeMap::new();
 
     let stdin = std::io::stdin();
@@ -88,16 +63,21 @@ fn groupby2<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
         let line = line.unwrap();
 
 
-        let capture = regex_matcher(re, &group_id)(&line);
-
-        grouping.entry(capture.to_string()).or_insert_with(Default::default).add(line.clone());
+        grouping.entry(key(&line)).or_insert_with(Default::default).add(line.clone());
     }
 
     return grouping;
 }
 
+fn groupby_regex<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
+    let mut key = regex_matcher(re, &group_id);
+
+    groupby(&mut key)
+}
+
+
 fn print_groupby<G: Group>(re: &Regex, group_id: GroupId) {
-    for (group, members) in groupby::<G>(&re, group_id) {
+    for (group, members) in groupby_regex::<G>(&re, group_id) {
         println!("{}", group);
         for line in members {
             println!("    {}", line);
