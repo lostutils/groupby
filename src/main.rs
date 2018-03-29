@@ -40,11 +40,29 @@ impl Group for Vec<String> {
     }
 }
 
-fn regex_matcher<'a>(re: &'a Regex, group_id: &'a GroupId) -> Box<FnMut(&str) -> String + 'a> {
-    Box::new(move |line: &str| -> String{
-        match re.captures(&line) {
+trait LineKey {
+    fn extract(&mut self, line: &str) -> String;
+}
+
+struct RegexMatcher<'a> {
+    regex: &'a Regex,
+    group_id: &'a GroupId<'a>,
+}
+
+impl<'a> RegexMatcher<'a> {
+    fn new(regex: &'a Regex, group_id: &'a GroupId<'a>) -> Self {
+        RegexMatcher {
+            regex,
+            group_id,
+        }
+    }
+}
+
+impl<'a> LineKey for RegexMatcher<'a> {
+    fn extract(&mut self, line: &str) -> String {
+        match self.regex.captures(&line) {
             Some(captures) => {
-                match *group_id {
+                match *self.group_id {
                     GroupId::Name(name) => captures.name(name).unwrap().as_str(),
                     GroupId::Index(index) => captures.get(index).unwrap().as_str(),
                     GroupId::None => captures.get(0).unwrap().as_str(),
@@ -52,10 +70,10 @@ fn regex_matcher<'a>(re: &'a Regex, group_id: &'a GroupId) -> Box<FnMut(&str) ->
             }
             None => "***NO-MATCH***",
         }.to_string()
-    })
+    }
 }
 
-fn groupby<'a, G: Group>(key: &mut Box<FnMut(&str) -> String + 'a>) -> BTreeMap<String, G> {
+fn groupby<'a, G: Group, K:LineKey>(key: &mut K) -> BTreeMap<String, G> {
     let mut grouping: BTreeMap<String, G> = BTreeMap::new();
 
     let stdin = std::io::stdin();
@@ -63,14 +81,14 @@ fn groupby<'a, G: Group>(key: &mut Box<FnMut(&str) -> String + 'a>) -> BTreeMap<
         let line = line.unwrap();
 
 
-        grouping.entry(key(&line)).or_insert_with(Default::default).add(line.clone());
+        grouping.entry(key.extract(&line)).or_insert_with(Default::default).add(line.clone());
     }
 
     return grouping;
 }
 
 fn groupby_regex<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
-    let mut key = regex_matcher(re, &group_id);
+    let mut key = RegexMatcher::new(re, &group_id);
 
     groupby(&mut key)
 }
