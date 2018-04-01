@@ -103,10 +103,20 @@ fn groupby_regex<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G>
 
 
 fn print_groupby<G: Group>(re: &Regex, group_id: GroupId, count_only: bool) {
-    for (group, members) in groupby_regex::<G>(&re, group_id) {
-        if count_only {
-            println!("[{:03}]: {}", members.len(), group);
-        } else {
+    let grouping = groupby_regex::<G>(&re, group_id);
+
+    if count_only {
+        let format_width = |&(_group, members): &(&String, &G)| format!("{}", members.len()).len();
+        let max_width = match grouping.iter().max_by_key(&format_width) {
+            Some(x) => format_width(&x),
+            None => 0,
+        };
+
+        for (group, members) in grouping {
+            println!("{:0width$}: {}", members.len(), group, width = max_width);
+        }
+    } else {
+        for (group, members) in grouping {
             println!("{}", group);
             for line in members {
                 println!("    {}", line);
