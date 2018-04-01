@@ -26,17 +26,25 @@ impl<'a> From<&'a str> for GroupId<'a> {
 
 trait Group: Default + IntoIterator<Item=String> {
     fn add(&mut self, line: String);
+    fn len(&self) -> usize;
 }
 
 impl Group for BTreeSet<String> {
     fn add(&mut self, line: String) {
         self.insert(line);
     }
+
+    fn len(&self) -> usize {
+        self.len()
+    }
 }
 
 impl Group for Vec<String> {
     fn add(&mut self, line: String) {
         self.push(line);
+    }
+    fn len(&self) -> usize {
+        self.len()
     }
 }
 
@@ -73,7 +81,7 @@ impl<'a> LineKey for RegexMatcher<'a> {
     }
 }
 
-fn groupby<'a, G: Group, K:LineKey>(key: &mut K) -> BTreeMap<String, G> {
+fn groupby<'a, G: Group, K: LineKey>(key: &mut K) -> BTreeMap<String, G> {
     let mut grouping: BTreeMap<String, G> = BTreeMap::new();
 
     let stdin = std::io::stdin();
@@ -94,21 +102,25 @@ fn groupby_regex<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G>
 }
 
 
-fn print_groupby<G: Group>(re: &Regex, group_id: GroupId) {
+fn print_groupby<G: Group>(re: &Regex, group_id: GroupId, count_only: bool) {
     for (group, members) in groupby_regex::<G>(&re, group_id) {
-        println!("{}", group);
-        for line in members {
-            println!("    {}", line);
+        if count_only {
+            println!("[{:03}]: {}", members.len(), group);
+        } else {
+            println!("{}", group);
+            for line in members {
+                println!("    {}", line);
+            }
         }
     }
 }
 
-fn print_groupby_unique(re: &Regex, group_id: GroupId) {
-    print_groupby::<BTreeSet<String>>(re, group_id);
+fn print_groupby_unique(re: &Regex, group_id: GroupId, count_only: bool) {
+    print_groupby::<BTreeSet<String>>(re, group_id, count_only);
 }
 
-fn print_groupby_all(re: &Regex, group_id: GroupId) {
-    print_groupby::<Vec<String>>(re, group_id);
+fn print_groupby_all(re: &Regex, group_id: GroupId, count_only: bool) {
+    print_groupby::<Vec<String>>(re, group_id, count_only);
 }
 
 fn compare_with_option<T: PartialEq>(value: &T, opt: &Option<T>) -> bool {
@@ -171,6 +183,12 @@ fn main() {
                 .takes_value(false)
                 .help("Remove duplicate lines in the same group")
         )
+        .arg(
+            Arg::with_name("count-only")
+                .long("count-only")
+                .takes_value(false)
+                .help("Only show the count of matches per group.")
+        )
         .get_matches();
 
 
@@ -189,10 +207,11 @@ fn main() {
     }
 
     let is_unique = matches.is_present("unique");
+    let count_only = matches.is_present("count-only");
 
     if is_unique {
-        print_groupby_unique(&re, group_id);
+        print_groupby_unique(&re, group_id, count_only);
     } else {
-        print_groupby_all(&re, group_id);
+        print_groupby_all(&re, group_id, count_only);
     }
 }
