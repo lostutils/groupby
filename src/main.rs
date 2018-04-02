@@ -24,7 +24,7 @@ impl<'a> From<&'a str> for GroupId<'a> {
 }
 
 
-trait Group: Default + IntoIterator<Item=String> {
+trait Group: Default + IntoIterator<Item=String> + Clone {
     fn add(&mut self, line: String);
     fn len(&self) -> usize;
 }
@@ -106,14 +106,15 @@ fn print_groupby<G: Group>(re: &Regex, group_id: GroupId, count_only: bool) {
     let grouping = groupby_regex::<G>(&re, group_id);
 
     if count_only {
-        let format_width = |&(_group, members): &(&String, &G)| format!("{}", members.len()).len();
-        let max_width = match grouping.iter().max_by_key(&format_width) {
-            Some(x) => format_width(&x),
-            None => 0,
+        let sorted_grouping = {
+            let mut keyed_grouping: Vec<(&String, usize)> = grouping.iter().map(|(group, members)| (group, members.len())).collect();
+            keyed_grouping.sort_by_key(|&(_group, count)| count);
+            keyed_grouping
         };
+        let max_width = format!("{}", sorted_grouping[sorted_grouping.len() - 1].1).len();
 
-        for (group, members) in grouping {
-            println!("{:0width$}: {}", members.len(), group, width = max_width);
+        for (group, count) in sorted_grouping {
+            println!(" {:width$} {}", count, group, width = std::cmp::max(max_width, 4));
         }
     } else {
         for (group, members) in grouping {
