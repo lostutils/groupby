@@ -24,13 +24,18 @@ impl<'a> From<&'a str> for GroupId<'a> {
 }
 
 
-trait Group: Default + IntoIterator<Item=String> {
+trait Group: Default + IntoIterator<Item=String> + Clone {
     fn add(&mut self, line: String);
+    fn len(&self) -> usize;
 }
 
 impl Group for BTreeSet<String> {
     fn add(&mut self, line: String) {
         self.insert(line);
+    }
+
+    fn len(&self) -> usize {
+        self.len()
     }
 }
 
@@ -38,9 +43,45 @@ impl Group for Vec<String> {
     fn add(&mut self, line: String) {
         self.push(line);
     }
+    fn len(&self) -> usize {
+        self.len()
+    }
 }
 
-fn groupby<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
+trait LineKey {
+    fn extract(&mut self, line: &str) -> String;
+}
+
+struct RegexMatcher<'a> {
+    regex: &'a Regex,
+    group_id: &'a GroupId<'a>,
+}
+
+impl<'a> RegexMatcher<'a> {
+    fn new(regex: &'a Regex, group_id: &'a GroupId<'a>) -> Self {
+        RegexMatcher {
+            regex,
+            group_id,
+        }
+    }
+}
+
+impl<'a> LineKey for RegexMatcher<'a> {
+    fn extract(&mut self, line: &str) -> String {
+        match self.regex.captures(&line) {
+            Some(captures) => {
+                match *self.group_id {
+                    GroupId::Name(name) => captures.name(name).unwrap().as_str(),
+                    GroupId::Index(index) => captures.get(index).unwrap().as_str(),
+                    GroupId::None => captures.get(0).unwrap().as_str(),
+                }
+            }
+            None => "***NO-MATCH***",
+        }.to_string()
+    }
+}
+
+fn groupby<'a, G: Group, K: LineKey>(key: &mut K) -> BTreeMap<String, G> {
     let mut grouping: BTreeMap<String, G> = BTreeMap::new();
 
     let stdin = std::io::stdin();
@@ -48,38 +89,49 @@ fn groupby<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
         let line = line.unwrap();
 
 
-        let capture = match re.captures(&line) {
-            Some(captures) => {
-                match group_id {
-                    GroupId::Name(name) => captures.name(name).unwrap().as_str(),
-                    GroupId::Index(index) => captures.get(index).unwrap().as_str(),
-                    GroupId::None => captures.get(0).unwrap().as_str(),
-                }
-            }
-            None => "***NO-MATCH***",
-        };
-
-        grouping.entry(capture.to_string()).or_insert_with(Default::default).add(line.clone());
+        grouping.entry(key.extract(&line)).or_insert_with(Default::default).add(line.clone());
     }
 
     return grouping;
 }
 
-fn print_groupby<G: Group>(re: &Regex, group_id: GroupId) {
-    for (group, members) in groupby::<G>(&re, group_id) {
-        println!("{}", group);
-        for line in members {
-            println!("    {}", line);
+fn groupby_regex<G: Group>(re: &Regex, group_id: GroupId) -> BTreeMap<String, G> {
+    let mut key = RegexMatcher::new(re, &group_id);
+
+    groupby(&mut key)
+}
+
+
+fn print_groupby<G: Group>(re: &Regex, group_id: GroupId, count_only: bool) {
+    let grouping = groupby_regex::<G>(&re, group_id);
+
+    if count_only {
+        let sorted_grouping = {
+            let mut keyed_grouping: Vec<(&String, usize)> = grouping.iter().map(|(group, members)| (group, members.len())).collect();
+            keyed_grouping.sort_by_key(|&(_group, count)| count);
+            keyed_grouping
+        };
+        let max_width = format!("{}", sorted_grouping[sorted_grouping.len() - 1].1).len();
+
+        for (group, count) in sorted_grouping {
+            println!(" {:width$} {}", count, group, width = std::cmp::max(max_width, 4));
+        }
+    } else {
+        for (group, members) in grouping {
+            println!("{}", group);
+            for line in members {
+                println!("    {}", line);
+            }
         }
     }
 }
 
-fn print_groupby_unique(re: &Regex, group_id: GroupId) {
-    print_groupby::<BTreeSet<String>>(re, group_id);
+fn print_groupby_unique(re: &Regex, group_id: GroupId, count_only: bool) {
+    print_groupby::<BTreeSet<String>>(re, group_id, count_only);
 }
 
-fn print_groupby_all(re: &Regex, group_id: GroupId) {
-    print_groupby::<Vec<String>>(re, group_id);
+fn print_groupby_all(re: &Regex, group_id: GroupId, count_only: bool) {
+    print_groupby::<Vec<String>>(re, group_id, count_only);
 }
 
 fn compare_with_option<T: PartialEq>(value: &T, opt: &Option<T>) -> bool {
@@ -142,6 +194,12 @@ fn main() {
                 .takes_value(false)
                 .help("Remove duplicate lines in the same group")
         )
+        .arg(
+            Arg::with_name("count-only")
+                .long("count-only")
+                .takes_value(false)
+                .help("Only show the count of matches per group.")
+        )
         .get_matches();
 
 
@@ -160,10 +218,11 @@ fn main() {
     }
 
     let is_unique = matches.is_present("unique");
+    let count_only = matches.is_present("count-only");
 
     if is_unique {
-        print_groupby_unique(&re, group_id);
+        print_groupby_unique(&re, group_id, count_only);
     } else {
-        print_groupby_all(&re, group_id);
+        print_groupby_all(&re, group_id, count_only);
     }
 }
