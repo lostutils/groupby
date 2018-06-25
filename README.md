@@ -3,20 +3,23 @@
 Group lines base on a regular expression
 
 ```
-groupby (lostutils) 0.1.3
+groupby (lostutils) 0.1.5
 Group lines based on a given regex.
 
 USAGE:
     groupby [FLAGS] [OPTIONS] <regex>
 
 FLAGS:
-    -h, --help       
+        --count-only    
+            Only show the count of matches per group.
+
+    -h, --help          
             Prints help information
 
-    -u               
+    -u                  
             Remove duplicate lines in the same group
 
-    -V, --version    
+    -V, --version       
             Prints version information
 
 
@@ -28,6 +31,7 @@ OPTIONS:
 ARGS:
     <regex>    
             The regex to group by. The match will use the entire expression, unless a group-id is provided.
+
 ```
 
 ## Usage
@@ -51,4 +55,10 @@ Bob
     Message from Bob: Hi!
     Message from Bob: Yes. It is really cool! 
 
+```
+```bash
+$ cat chat.txt | groupby "Message from (\w+):" -g 1 --count-only
+    1 ***NO-MATCH***
+    2 Alice
+    2 Bob
 ```
